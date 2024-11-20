@@ -144,6 +144,7 @@ foreach(EXAMPLE
   62_hopper_sparse_gemm
   63_hopper_gemm_with_weight_prefetch
   64_ada_fp8_gemm_grouped
+  test_for_lms
   )
 
   add_subdirectory(${EXAMPLE})

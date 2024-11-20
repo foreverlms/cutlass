@@ -292,7 +292,7 @@ cudaError_t TestCutlassGemm(int M, int N, int K, float alpha, float beta) {
   //
 
   // Compute leading dimensions for each matrix.
-  int lda = M;
+  int lda = M; // lms: All ColumnMajor.
   int ldb = K;
   int ldc = M;
 

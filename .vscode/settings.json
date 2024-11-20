@@ -1,0 +1,10 @@
+{
+  "cmake.configureSettings": {
+    "CUTLASS_NVCC_ARCHS": "90a",
+    "CUTLASS_UNITY_BUILD_ENABLED": "ON"
+  },
+  "cmake.buildArgs": [
+    "--parallel",
+    "96"
+  ]
+}

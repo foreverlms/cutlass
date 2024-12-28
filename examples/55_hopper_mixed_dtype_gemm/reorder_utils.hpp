@@ -66,6 +66,12 @@ constexpr auto compute_memory_reordering_atom(AtomLayout atom_layout = {}, ValLa
   auto mk_shape_warp = shape_div(mk_shape_mma, size(typename MmaTraits::ThrID{}) / Int<32>{});
   auto tv_layout_mma_warp = make_layout_like(composition(tv_layout_mma, tv_tiler_warp));
   auto mk_layout_mma_warp = right_inverse(tv_layout_mma_warp).with_shape(mk_shape_warp);
+  // auto tile_TV_warp = make_shape(Int<32>{}, size<1>(tv_layout_mma));
+  // printf("LMS: hahahha\n");
+  // cute::print("LMS: \n");
+  // cute::print(tv_layout_mma);
+  // cute::print(size<1>(tv_layout_mma));
+  // auto tv_layout_mma_warp = make_layout_like(composition(tv_layout_mma, tile_TV_warp));
 
   // 3. Repeat the warp layout NumAtoms times along K mode to get wider vectorization
   auto mk_layout_mma_trgt = blocked_product(mk_layout_mma_warp, atom_layout);

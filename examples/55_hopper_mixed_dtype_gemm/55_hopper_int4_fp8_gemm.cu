@@ -152,12 +152,14 @@ using ElementZero = ElementScale; // only for verify
 using LayoutScale = cutlass::layout::RowMajor;
 
 // C/D matrix configuration
-using         ElementC    = cutlass::half_t;                                // Element type for C and D matrix operands
+// using         ElementC    = cutlass::half_t;                                // Element type for C and D matrix operands
+using         ElementC    = MmaType;                                // Element type for C and D matrix operands
 using         LayoutC     = cutlass::layout::RowMajor;                      // Layout type for C and D matrix operands
 constexpr int AlignmentC  = 128 / cutlass::sizeof_bits<ElementC>::value;    // Memory access granularity/alignment of C matrix in units of elements (up to 16 bytes)
 
 // D matrix configuration
-using         ElementD    = ElementC;
+// using         ElementD    = ElementC;
+using         ElementD    = MmaType;
 using         LayoutD     = LayoutC;
 constexpr int AlignmentD  = 128 / cutlass::sizeof_bits<ElementD>::value;
 
@@ -166,10 +168,13 @@ using ElementAccumulator  = float;                                          // E
 using ElementCompute      = float;                                          // Element type for epilogue computation
 using ArchTag             = cutlass::arch::Sm90;                            // Tag indicating the minimum SM that supports the intended feature
 using OperatorClass       = cutlass::arch::OpClassTensorOp;                 // Operator class tag
-using TileShape           = Shape<_128,_128,cute::Int<TileShapeK>>;         // Threadblock-level tile size
+using TileShape           = Shape<_128,_16,cute::Int<TileShapeK>>;         // Threadblock-level tile size
 using ClusterShape        = Shape<_1,_1,_1>;                                // Shape of the threadblocks in a cluster
-using KernelSchedule      = cutlass::gemm::KernelTmaWarpSpecializedCooperative;  // Kernel to launch based on the default setting in the Collective Builder 
-using EpilogueSchedule    = cutlass::epilogue::TmaWarpSpecializedCooperative;
+
+// using KernelSchedule      = cutlass::gemm::KernelTmaWarpSpecializedCooperative;  // Kernel to launch based on the default setting in the Collective Builder 
+using KernelSchedule      = cutlass::gemm::KernelTmaWarpSpecializedPingpong;  // Kernel to launch based on the default setting in the Collective Builder 
+// using EpilogueSchedule    = cutlass::epilogue::TmaWarpSpecializedCooperative;
+using EpilogueSchedule    = cutlass::epilogue::TmaWarpSpecialized;
 using EpilogueTileType    = cutlass::epilogue::collective::EpilogueTileAuto;
 
 using CollectiveEpilogue = typename cutlass::epilogue::collective::CollectiveBuilder<
@@ -322,6 +327,8 @@ void initialize(Options const& options) {
   int const scale_k = (options.k + options.g - 1) / options.g;
   stride_A = cutlass::make_cute_packed_stride(StrideA{}, cute::make_shape(options.m, options.k, options.l));
   stride_B = cutlass::make_cute_packed_stride(StrideB{}, shape_B);
+
+
   // Reverse stride here due to swap and transpose
   stride_C = cutlass::make_cute_packed_stride(StrideC{}, cute::make_shape(options.n, options.m, options.l));
   stride_C_ref = cutlass::make_cute_packed_stride(StrideC_ref{}, cute::make_shape(options.m, options.n, options.l));
@@ -329,6 +336,14 @@ void initialize(Options const& options) {
   stride_D = cutlass::make_cute_packed_stride(StrideD{}, cute::make_shape(options.n, options.m, options.l));
   stride_D_ref = cutlass::make_cute_packed_stride(StrideD_ref{}, cute::make_shape(options.m, options.n, options.l));
 
+
+  cute::print("LMS: stride A: \n");
+  cute::print(stride_A);
+  cute::print("\n");
+  cute::print("LMS: stride B: \n");
+  cute::print(stride_B);
+  cute::print("\n");
+  
   auto layout_B = make_layout(shape_B, stride_B);
 
   auto a_coord = cutlass::make_Coord(options.m * options.l, options.k);
@@ -347,13 +362,19 @@ void initialize(Options const& options) {
   block_scale_packed.reset(scale_k * options.l * options.n);
   block_zero.reset(scale_k * options.l * options.n);
 
+  cute::print("Before init!\n");
+
   initialize_tensor(block_A, seed + 2022);
+  cute::print("After A init!\n");
   initialize_quant_tensor(block_B, seed + 2021);
+  cute::print("After B init!\n");
   unify_quant_encoding(block_B, block_B_modified);
   initialize_tensor(block_C, seed + 2020);
   initialize_scale(block_scale, options);
   initialize_packed_scale(block_scale, block_scale_packed);
   initialize_zero(block_zero, options);
+
+  cute::print("After init!\n");
 
   auto shape_scale_zero = cute::make_shape(options.n, scale_k, options.l);
   stride_S = cutlass::make_cute_packed_stride(StrideS{}, cute::make_shape(options.n, scale_k, options.l));
@@ -457,6 +478,19 @@ bool verify(Options const& options) {
   ElementD const non_zero_floor(1e-4f);
   bool passed = cutlass::reference::device::BlockCompareRelativelyEqual(block_ref_D.get(), block_D.get(), block_D.size(), epsilon, non_zero_floor);
 
+  // construct the tensor
+  Tensor ref_tensor = make_tensor(block_ref_D.get(), make_layout(make_shape(options.m, options.n), stride_D_ref));
+  Tensor res_tensor = make_tensor(block_D.get(), make_layout(make_shape(options.n, options.m), stride_D));
+  cute::print(layout(ref_tensor));
+  cute::print("\n");
+  cute::print(layout(res_tensor));
+  cute::print("\n");
+  cute::print(ref_tensor);
+  cute::print("\n");
+  cute::print(res_tensor);
+  cute::print("\n");
+  cute::print(stride_S);
+  cute::print("\n");
   return passed;
 }
 
